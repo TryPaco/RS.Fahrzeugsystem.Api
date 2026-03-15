@@ -4,6 +4,7 @@ using RS.Fahrzeugsystem.Api.Authorization;
 using RS.Fahrzeugsystem.Api.Data;
 using RS.Fahrzeugsystem.Api.Dtos;
 using RS.Fahrzeugsystem.Api.Models;
+using System.Security.Claims;
 
 namespace RS.Fahrzeugsystem.Api.Controllers;
 
@@ -30,6 +31,27 @@ public sealed class UsersController(AppDbContext dbContext) : ControllerBase
             .ToListAsync();
 
         return Ok(users);
+    }
+
+    [HttpGet("roles")]
+    [HasPermission("users.view")]
+    public async Task<ActionResult> GetRoles()
+    {
+        var roles = await dbContext.Roles
+            .Include(x => x.RolePermissions)
+            .ThenInclude(x => x.Permission)
+            .OrderBy(x => x.Name)
+            .Select(x => new
+            {
+                x.Name,
+                x.Description,
+                Permissions = x.RolePermissions
+                    .Select(rp => rp.Permission.Key)
+                    .OrderBy(key => key)
+            })
+            .ToListAsync();
+
+        return Ok(roles);
     }
 
     [HttpPost]
@@ -82,6 +104,29 @@ public sealed class UsersController(AppDbContext dbContext) : ControllerBase
         {
             dbContext.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id });
         }
+
+        await dbContext.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}")]
+    [HasPermission("users.manage")]
+    public async Task<ActionResult> Delete(Guid id)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (Guid.TryParse(currentUserId, out var parsedCurrentUserId) && parsedCurrentUserId == id)
+        {
+            return BadRequest("Der aktuell angemeldete Benutzer kann nicht gelöscht werden.");
+        }
+
+        var user = await dbContext.Users
+            .Include(x => x.UserRoles)
+            .SingleOrDefaultAsync(x => x.Id == id);
+
+        if (user is null) return NotFound();
+
+        dbContext.UserRoles.RemoveRange(user.UserRoles);
+        dbContext.Users.Remove(user);
 
         await dbContext.SaveChangesAsync();
         return NoContent();
