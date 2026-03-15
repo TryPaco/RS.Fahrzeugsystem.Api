@@ -20,6 +20,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddScoped<IVinDecoderService, VinDecoderService>();
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
 				 ?? throw new InvalidOperationException("JWT settings missing.");
@@ -41,6 +42,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 	});
 
 builder.Services.AddAuthorization();
+
+builder.Services.AddCors(options =>
+{
+	options.AddPolicy("frontend", policy =>
+	{
+		policy
+			.WithOrigins("http://localhost:5173")
+			.AllowAnyHeader()
+			.AllowAnyMethod();
+	});
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -79,6 +91,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+app.UseCors("frontend");
 
 using (var scope = app.Services.CreateScope())
 {

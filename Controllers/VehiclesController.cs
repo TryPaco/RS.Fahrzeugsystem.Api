@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RS.Fahrzeugsystem.Api.Authorization;
 using RS.Fahrzeugsystem.Api.Data;
-using RS.Fahrzeugsystem.Api.Dtos;
 using RS.Fahrzeugsystem.Api.Models;
 
 namespace RS.Fahrzeugsystem.Api.Controllers;
@@ -11,146 +10,385 @@ namespace RS.Fahrzeugsystem.Api.Controllers;
 [Route("api/vehicles")]
 public sealed class VehiclesController(AppDbContext dbContext) : ControllerBase
 {
-    [HttpGet]
-    [HasPermission("vehicles.view")]
-    public async Task<ActionResult> GetAll([FromQuery] bool includeArchived = false)
-    {
-        var query = dbContext.Vehicles.Include(x => x.Customer).AsQueryable();
-        if (!includeArchived)
-            query = query.Where(x => !x.IsArchived);
+	public sealed class CreateVehicleRequest
+	{
+		public Guid CustomerId { get; set; }
+		public string InternalNumber { get; set; } = default!;
+		public string? Fin { get; set; }
+		public string? LicensePlate { get; set; }
+		public string Brand { get; set; } = default!;
+		public string Model { get; set; } = default!;
+		public string? ModelVariant { get; set; }
+		public int? BuildYear { get; set; }
+		public string? EngineCode { get; set; }
+		public string? Transmission { get; set; }
+		public string? FuelType { get; set; }
+		public string? Color { get; set; }
+		public long CurrentKm { get; set; }
+		public int? StockPowerHp { get; set; }
+		public int? CurrentPowerHp { get; set; }
+		public string? SoftwareStage { get; set; }
+		public string? Notes { get; set; }
+	}
 
-        var items = await query
-            .OrderByDescending(x => x.CreatedAtUtc)
-            .Select(x => new
-            {
-                x.Id,
-                x.InternalNumber,
-                x.Fin,
-                x.LicensePlate,
-                x.Brand,
-                x.Model,
-                x.CurrentKm,
-                Customer = x.Customer.FirstName + " " + x.Customer.LastName,
-                x.IsArchived
-            })
-            .ToListAsync();
+	public sealed class UpdateVehicleRequest
+	{
+		public Guid CustomerId { get; set; }
+		public string InternalNumber { get; set; } = default!;
+		public string? Fin { get; set; }
+		public string? LicensePlate { get; set; }
+		public string Brand { get; set; } = default!;
+		public string Model { get; set; } = default!;
+		public string? ModelVariant { get; set; }
+		public int? BuildYear { get; set; }
+		public string? EngineCode { get; set; }
+		public string? Transmission { get; set; }
+		public string? FuelType { get; set; }
+		public string? Color { get; set; }
+		public long CurrentKm { get; set; }
+		public int? StockPowerHp { get; set; }
+		public int? CurrentPowerHp { get; set; }
+		public string? SoftwareStage { get; set; }
+		public string? Notes { get; set; }
+		public bool IsArchived { get; set; }
+	}
 
-        return Ok(items);
-    }
+	[HttpGet]
+	[HasPermission("vehicles.view")]
+	public async Task<ActionResult> GetAll(
+		[FromQuery] bool includeArchived = false,
+		[FromQuery] string? q = null)
+	{
+		var query = dbContext.Vehicles
+			.AsNoTracking()
+			.Include(x => x.Customer)
+			.AsQueryable();
 
-    [HttpGet("{id:guid}")]
-    [HasPermission("vehicles.view")]
-    public async Task<ActionResult> GetById(Guid id)
-    {
-        var vehicle = await dbContext.Vehicles
-            .Include(x => x.Customer)
-            .Include(x => x.Labels)
-            .Include(x => x.Parts)
-            .Include(x => x.HistoryEntries)
-            .SingleOrDefaultAsync(x => x.Id == id);
+		if (!includeArchived)
+			query = query.Where(x => !x.IsArchived);
 
-        return vehicle is null ? NotFound() : Ok(vehicle);
-    }
+		if (!string.IsNullOrWhiteSpace(q))
+		{
+			var term = q.Trim().ToLower();
 
-    [HttpGet("search")]
-    [HasPermission("vehicles.view")]
-    public async Task<ActionResult> Search([FromQuery] string q)
-    {
-        q = q.Trim();
-        var results = await dbContext.Vehicles
-            .Include(x => x.Customer)
-            .Where(x => !x.IsArchived && (
-                (x.InternalNumber != null && x.InternalNumber.Contains(q)) ||
-                (x.Fin != null && x.Fin.Contains(q)) ||
-                (x.LicensePlate != null && x.LicensePlate.Contains(q)) ||
-                x.Brand.Contains(q) ||
-                x.Model.Contains(q) ||
-                x.Customer.FirstName.Contains(q) ||
-                x.Customer.LastName.Contains(q)))
-            .Take(50)
-            .ToListAsync();
+			query = query.Where(x =>
+				x.InternalNumber.ToLower().Contains(term) ||
+				(x.Fin != null && x.Fin.ToLower().Contains(term)) ||
+				(x.LicensePlate != null && x.LicensePlate.ToLower().Contains(term)) ||
+				x.Brand.ToLower().Contains(term) ||
+				x.Model.ToLower().Contains(term) ||
+				(x.ModelVariant != null && x.ModelVariant.ToLower().Contains(term)) ||
+				x.Customer.FirstName.ToLower().Contains(term) ||
+				x.Customer.LastName.ToLower().Contains(term) ||
+				(x.Customer.CompanyName != null && x.Customer.CompanyName.ToLower().Contains(term))
+			);
+		}
 
-        return Ok(results);
-    }
+		var vehicles = await query
+			.OrderBy(x => x.Brand)
+			.ThenBy(x => x.Model)
+			.ThenBy(x => x.LicensePlate)
+			.Select(x => new
+			{
+				x.Id,
+				x.CustomerId,
+				customerName = x.Customer.CompanyName != null && x.Customer.CompanyName != ""
+					? x.Customer.CompanyName
+					: x.Customer.FirstName + " " + x.Customer.LastName,
+				x.InternalNumber,
+				x.Fin,
+				x.LicensePlate,
+				x.Brand,
+				x.Model,
+				x.ModelVariant,
+				x.BuildYear,
+				x.EngineCode,
+				x.Transmission,
+				x.FuelType,
+				x.Color,
+				x.CurrentKm,
+				x.StockPowerHp,
+				x.CurrentPowerHp,
+				x.SoftwareStage,
+				x.Notes,
+				x.IsArchived,
+				x.CreatedAtUtc,
+				x.UpdatedAtUtc
+			})
+			.ToListAsync();
 
-    [HttpPost]
-    [HasPermission("vehicles.create")]
-    public async Task<ActionResult> Create([FromBody] CreateVehicleRequest request)
-    {
-        if (!string.IsNullOrWhiteSpace(request.Fin) && await dbContext.Vehicles.AnyAsync(x => x.Fin == request.Fin))
-            return Conflict("FIN existiert bereits.");
+		return Ok(vehicles);
+	}
 
-        if (!await dbContext.Customers.AnyAsync(x => x.Id == request.CustomerId))
-            return BadRequest("Kunde nicht gefunden.");
+	[HttpGet("{id:guid}")]
+	[HasPermission("vehicles.view")]
+	public async Task<ActionResult> GetById(Guid id)
+	{
+		var vehicle = await dbContext.Vehicles
+			.AsNoTracking()
+			.Include(x => x.Customer)
+			.Include(x => x.Labels)
+			.Include(x => x.Parts)
+			.Include(x => x.HistoryEntries)
+			.SingleOrDefaultAsync(x => x.Id == id);
 
-        var entity = new Vehicle
-        {
-            CustomerId = request.CustomerId,
-            InternalNumber = request.InternalNumber,
-            Fin = request.Fin,
-            LicensePlate = request.LicensePlate,
-            Brand = request.Brand,
-            Model = request.Model,
-            ModelVariant = request.ModelVariant,
-            BuildYear = request.BuildYear,
-            EngineCode = request.EngineCode,
-            Transmission = request.Transmission,
-            FuelType = request.FuelType,
-            Color = request.Color,
-            CurrentKm = request.CurrentKm,
-            StockPowerHp = request.StockPowerHp,
-            CurrentPowerHp = request.CurrentPowerHp,
-            SoftwareStage = request.SoftwareStage,
-            Notes = request.Notes
-        };
+		if (vehicle is null)
+			return NotFound();
 
-        dbContext.Vehicles.Add(entity);
-        await dbContext.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = entity.Id }, entity);
-    }
+		return Ok(new
+		{
+			vehicle.Id,
+			vehicle.CustomerId,
+			customer = new
+			{
+				vehicle.Customer.Id,
+				vehicle.Customer.CustomerNumber,
+				vehicle.Customer.CompanyName,
+				vehicle.Customer.FirstName,
+				vehicle.Customer.LastName,
+				vehicle.Customer.Phone,
+				vehicle.Customer.Email
+			},
+			vehicle.InternalNumber,
+			vehicle.Fin,
+			vehicle.LicensePlate,
+			vehicle.Brand,
+			vehicle.Model,
+			vehicle.ModelVariant,
+			vehicle.BuildYear,
+			vehicle.EngineCode,
+			vehicle.Transmission,
+			vehicle.FuelType,
+			vehicle.Color,
+			vehicle.CurrentKm,
+			vehicle.StockPowerHp,
+			vehicle.CurrentPowerHp,
+			vehicle.SoftwareStage,
+			vehicle.Notes,
+			vehicle.IsArchived,
+			vehicle.CreatedAtUtc,
+			vehicle.UpdatedAtUtc,
+			labels = vehicle.Labels
+				.Select(l => new
+				{
+					l.Id,
+					l.Code,
+					l.Prefix,
+					l.CodeNumber,
+					l.Type,
+					l.Status,
+					l.PositionOnVehicle,
+					l.AssignedAtUtc,
+					l.Notes
+				})
+				.OrderBy(l => l.Code)
+				.ToList(),
+			parts = vehicle.Parts
+				.Select(p => new
+				{
+					p.Id,
+					p.CategoryId,
+					p.Name,
+					p.Manufacturer,
+					p.PartNumber,
+					p.SerialNumber,
+					p.InstalledAtUtc,
+					p.InstalledKm,
+					p.RemovedAtUtc,
+					p.RemovedKm,
+					p.Status,
+					p.PriceNet,
+					p.PriceGross,
+					p.Notes,
+					p.CreatedAtUtc,
+					p.UpdatedAtUtc
+				})
+				.OrderByDescending(p => p.InstalledAtUtc)
+				.ToList(),
+			history = vehicle.HistoryEntries
+				.Select(h => new
+				{
+					h.Id,
+					h.EventType,
+					h.Title,
+					h.Description,
+					h.EventDateUtc,
+					h.KmRequired,
+					h.KmValue,
+					h.CreatedByUserId,
+					h.CreatedAtUtc,
+					h.UpdatedAtUtc
+				})
+				.OrderByDescending(h => h.EventDateUtc)
+				.ToList()
+		});
+	}
 
-    [HttpPut("{id:guid}")]
-    [HasPermission("vehicles.edit")]
-    public async Task<ActionResult> Update(Guid id, [FromBody] UpdateVehicleRequest request)
-    {
-        var entity = await dbContext.Vehicles.FindAsync(id);
-        if (entity is null) return NotFound();
+	[HttpPost]
+	[HasPermission("vehicles.create")]
+	public async Task<ActionResult> Create([FromBody] CreateVehicleRequest request)
+	{
+		if (request.CustomerId == Guid.Empty)
+			return BadRequest("CustomerId ist erforderlich.");
 
-        if (!string.IsNullOrWhiteSpace(request.Fin) && request.Fin != entity.Fin && await dbContext.Vehicles.AnyAsync(x => x.Fin == request.Fin))
-            return Conflict("FIN existiert bereits.");
+		if (string.IsNullOrWhiteSpace(request.InternalNumber))
+			return BadRequest("InternalNumber ist erforderlich.");
 
-        entity.Fin = request.Fin;
-        entity.LicensePlate = request.LicensePlate;
-        entity.Brand = request.Brand;
-        entity.Model = request.Model;
-        entity.ModelVariant = request.ModelVariant;
-        entity.BuildYear = request.BuildYear;
-        entity.EngineCode = request.EngineCode;
-        entity.Transmission = request.Transmission;
-        entity.FuelType = request.FuelType;
-        entity.Color = request.Color;
-        entity.CurrentKm = request.CurrentKm;
-        entity.StockPowerHp = request.StockPowerHp;
-        entity.CurrentPowerHp = request.CurrentPowerHp;
-        entity.SoftwareStage = request.SoftwareStage;
-        entity.Notes = request.Notes;
-        entity.IsArchived = request.IsArchived;
-        entity.UpdatedAtUtc = DateTime.UtcNow;
+		if (string.IsNullOrWhiteSpace(request.Brand))
+			return BadRequest("Brand ist erforderlich.");
 
-        await dbContext.SaveChangesAsync();
-        return NoContent();
-    }
+		if (string.IsNullOrWhiteSpace(request.Model))
+			return BadRequest("Model ist erforderlich.");
 
-    [HttpDelete("{id:guid}")]
-    [HasPermission("vehicles.delete")]
-    public async Task<ActionResult> Archive(Guid id)
-    {
-        var entity = await dbContext.Vehicles.FindAsync(id);
-        if (entity is null) return NotFound();
+		if (request.CurrentKm < 0)
+			return BadRequest("CurrentKm darf nicht kleiner als 0 sein.");
 
-        entity.IsArchived = true;
-        entity.UpdatedAtUtc = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync();
-        return NoContent();
-    }
+		var customerExists = await dbContext.Customers
+			.AnyAsync(x => x.Id == request.CustomerId && !x.IsArchived);
+
+		if (!customerExists)
+			return BadRequest("Der angegebene Kunde existiert nicht oder ist archiviert.");
+
+		var internalNumber = request.InternalNumber.Trim();
+		var fin = string.IsNullOrWhiteSpace(request.Fin) ? null : request.Fin.Trim().ToUpperInvariant();
+		var licensePlate = string.IsNullOrWhiteSpace(request.LicensePlate) ? null : request.LicensePlate.Trim().ToUpperInvariant();
+
+		if (await dbContext.Vehicles.AnyAsync(x => x.InternalNumber == internalNumber))
+			return Conflict("Die interne Fahrzeugnummer existiert bereits.");
+
+		if (!string.IsNullOrWhiteSpace(fin) &&
+			await dbContext.Vehicles.AnyAsync(x => x.Fin != null && x.Fin == fin))
+			return Conflict("Die FIN existiert bereits.");
+
+		var entity = new Vehicle
+		{
+			Id = Guid.NewGuid(),
+			CustomerId = request.CustomerId,
+			InternalNumber = internalNumber,
+			Fin = fin,
+			LicensePlate = licensePlate,
+			Brand = request.Brand.Trim(),
+			Model = request.Model.Trim(),
+			ModelVariant = request.ModelVariant?.Trim(),
+			BuildYear = request.BuildYear,
+			EngineCode = request.EngineCode?.Trim(),
+			Transmission = request.Transmission?.Trim(),
+			FuelType = request.FuelType?.Trim(),
+			Color = request.Color?.Trim(),
+			CurrentKm = request.CurrentKm,
+			StockPowerHp = request.StockPowerHp,
+			CurrentPowerHp = request.CurrentPowerHp,
+			SoftwareStage = request.SoftwareStage?.Trim(),
+			Notes = request.Notes?.Trim(),
+			IsArchived = false,
+			CreatedAtUtc = DateTime.UtcNow
+		};
+
+		dbContext.Vehicles.Add(entity);
+		await dbContext.SaveChangesAsync();
+
+		return CreatedAtAction(nameof(GetById), new { id = entity.Id }, new
+		{
+			entity.Id,
+			entity.CustomerId,
+			entity.InternalNumber,
+			entity.Fin,
+			entity.LicensePlate,
+			entity.Brand,
+			entity.Model,
+			entity.ModelVariant,
+			entity.BuildYear,
+			entity.EngineCode,
+			entity.Transmission,
+			entity.FuelType,
+			entity.Color,
+			entity.CurrentKm,
+			entity.StockPowerHp,
+			entity.CurrentPowerHp,
+			entity.SoftwareStage,
+			entity.Notes,
+			entity.IsArchived,
+			entity.CreatedAtUtc,
+			entity.UpdatedAtUtc
+		});
+	}
+
+	[HttpPut("{id:guid}")]
+	[HasPermission("vehicles.edit")]
+	public async Task<ActionResult> Update(Guid id, [FromBody] UpdateVehicleRequest request)
+	{
+		var entity = await dbContext.Vehicles.FindAsync(id);
+		if (entity is null)
+			return NotFound();
+
+		if (request.CustomerId == Guid.Empty)
+			return BadRequest("CustomerId ist erforderlich.");
+
+		if (string.IsNullOrWhiteSpace(request.InternalNumber))
+			return BadRequest("InternalNumber ist erforderlich.");
+
+		if (string.IsNullOrWhiteSpace(request.Brand))
+			return BadRequest("Brand ist erforderlich.");
+
+		if (string.IsNullOrWhiteSpace(request.Model))
+			return BadRequest("Model ist erforderlich.");
+
+		if (request.CurrentKm < 0)
+			return BadRequest("CurrentKm darf nicht kleiner als 0 sein.");
+
+		var customerExists = await dbContext.Customers
+			.AnyAsync(x => x.Id == request.CustomerId && !x.IsArchived);
+
+		if (!customerExists)
+			return BadRequest("Der angegebene Kunde existiert nicht oder ist archiviert.");
+
+		var internalNumber = request.InternalNumber.Trim();
+		var fin = string.IsNullOrWhiteSpace(request.Fin) ? null : request.Fin.Trim().ToUpperInvariant();
+		var licensePlate = string.IsNullOrWhiteSpace(request.LicensePlate) ? null : request.LicensePlate.Trim().ToUpperInvariant();
+
+		if (await dbContext.Vehicles.AnyAsync(x => x.Id != id && x.InternalNumber == internalNumber))
+			return Conflict("Die interne Fahrzeugnummer existiert bereits.");
+
+		if (!string.IsNullOrWhiteSpace(fin) &&
+			await dbContext.Vehicles.AnyAsync(x => x.Id != id && x.Fin != null && x.Fin == fin))
+			return Conflict("Die FIN existiert bereits.");
+
+		entity.CustomerId = request.CustomerId;
+		entity.InternalNumber = internalNumber;
+		entity.Fin = fin;
+		entity.LicensePlate = licensePlate;
+		entity.Brand = request.Brand.Trim();
+		entity.Model = request.Model.Trim();
+		entity.ModelVariant = request.ModelVariant?.Trim();
+		entity.BuildYear = request.BuildYear;
+		entity.EngineCode = request.EngineCode?.Trim();
+		entity.Transmission = request.Transmission?.Trim();
+		entity.FuelType = request.FuelType?.Trim();
+		entity.Color = request.Color?.Trim();
+		entity.CurrentKm = request.CurrentKm;
+		entity.StockPowerHp = request.StockPowerHp;
+		entity.CurrentPowerHp = request.CurrentPowerHp;
+		entity.SoftwareStage = request.SoftwareStage?.Trim();
+		entity.Notes = request.Notes?.Trim();
+		entity.IsArchived = request.IsArchived;
+		entity.UpdatedAtUtc = DateTime.UtcNow;
+
+		await dbContext.SaveChangesAsync();
+		return NoContent();
+	}
+
+	[HttpDelete("{id:guid}")]
+	[HasPermission("vehicles.delete")]
+	public async Task<ActionResult> Archive(Guid id)
+	{
+		var entity = await dbContext.Vehicles.FindAsync(id);
+		if (entity is null)
+			return NotFound();
+
+		entity.IsArchived = true;
+		entity.UpdatedAtUtc = DateTime.UtcNow;
+
+		await dbContext.SaveChangesAsync();
+		return NoContent();
+	}
 }
