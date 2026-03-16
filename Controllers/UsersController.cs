@@ -41,17 +41,19 @@ public sealed class UsersController(AppDbContext dbContext) : ControllerBase
             .Include(x => x.RolePermissions)
             .ThenInclude(x => x.Permission)
             .OrderBy(x => x.Name)
-            .Select(x => new
-            {
-                x.Name,
-                x.Description,
-                Permissions = x.RolePermissions
-                    .Select(rp => rp.Permission.Key)
-                    .OrderBy(key => key)
-            })
             .ToListAsync();
 
-        return Ok(roles);
+        var result = roles.Select(x => new
+        {
+            x.Name,
+            x.Description,
+            Permissions = x.RolePermissions
+                .Select(rp => rp.Permission.Key)
+                .OrderBy(key => key)
+                .ToArray()
+        });
+
+        return Ok(result);
     }
 
     [HttpPost]
@@ -127,6 +129,25 @@ public sealed class UsersController(AppDbContext dbContext) : ControllerBase
 
         dbContext.UserRoles.RemoveRange(user.UserRoles);
         dbContext.Users.Remove(user);
+
+        await dbContext.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/reset-password")]
+    [HasPermission("users.manage")]
+    public async Task<ActionResult> ResetPassword(Guid id, [FromBody] ResetUserPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return BadRequest("Neues Passwort ist erforderlich.");
+        }
+
+        var user = await dbContext.Users.SingleOrDefaultAsync(x => x.Id == id);
+        if (user is null) return NotFound();
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.UpdatedAtUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync();
         return NoContent();

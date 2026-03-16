@@ -13,3 +13,5 @@ public sealed record UpdateUserRequest(
     string Email,
     bool IsActive,
     List<string> Roles);
+
+public sealed record ResetUserPasswordRequest(string NewPassword);

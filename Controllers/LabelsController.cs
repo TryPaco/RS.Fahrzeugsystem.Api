@@ -89,7 +89,7 @@ public sealed class LabelsController(AppDbContext dbContext) : ControllerBase
 		var label = await dbContext.Labels
 			.AsNoTracking()
 			.Include(x => x.Vehicle)
-				.ThenInclude(v => v.Customer)
+				.ThenInclude(v => v!.Customer)
 			.SingleOrDefaultAsync(x => x.Code == normalizedCode);
 
 		if (label is null)

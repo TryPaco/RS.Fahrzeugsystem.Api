@@ -13,11 +13,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<JwtOptions>(
 	builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<SmtpOptions>(
+	builder.Configuration.GetSection(SmtpOptions.SectionName));
+builder.Services.Configure<PasswordResetOptions>(
+	builder.Configuration.GetSection(PasswordResetOptions.SectionName));
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 	options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IVinDecoderService, VinDecoderService>();

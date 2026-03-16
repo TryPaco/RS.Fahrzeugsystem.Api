@@ -17,6 +17,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<VehiclePart> VehicleParts => Set<VehiclePart>();
     public DbSet<VehicleHistory> VehicleHistory => Set<VehicleHistory>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<SmtpConfiguration> SmtpConfigurations => Set<SmtpConfiguration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -71,6 +73,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<PartCategory>(entity =>
         {
             entity.HasIndex(x => x.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => x.ExpiresAtUtc);
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SmtpConfiguration>(entity =>
+        {
+            entity.Property(x => x.FromName).HasDefaultValue("RS Fahrzeugsystem");
         });
     }
 }
