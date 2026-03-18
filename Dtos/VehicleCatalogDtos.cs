@@ -1,0 +1,58 @@
+namespace RS.Fahrzeugsystem.Api.Dtos;
+
+public sealed record VehicleCatalogEntryResponse(
+    Guid Id,
+    string Brand,
+    string Model,
+    string? Variant,
+    string? YearLabel,
+    int? BuildYearFrom,
+    int? BuildYearTo,
+    string? Engine,
+    string? EngineCode,
+    string? Transmission,
+    string? TransmissionCode,
+    string? EcuType,
+    string? EcuManufacturer,
+    string? DriveType,
+    string? Platform,
+    string? Notes,
+    bool IsActive,
+    DateTime CreatedAtUtc,
+    DateTime? UpdatedAtUtc);
+
+public sealed record CreateVehicleCatalogEntryRequest(
+    string Brand,
+    string Model,
+    string? Variant,
+    string? YearLabel,
+    int? BuildYearFrom,
+    int? BuildYearTo,
+    string? Engine,
+    string? EngineCode,
+    string? Transmission,
+    string? TransmissionCode,
+    string? EcuType,
+    string? EcuManufacturer,
+    string? DriveType,
+    string? Platform,
+    string? Notes,
+    bool IsActive);
+
+public sealed record UpdateVehicleCatalogEntryRequest(
+    string Brand,
+    string Model,
+    string? Variant,
+    string? YearLabel,
+    int? BuildYearFrom,
+    int? BuildYearTo,
+    string? Engine,
+    string? EngineCode,
+    string? Transmission,
+    string? TransmissionCode,
+    string? EcuType,
+    string? EcuManufacturer,
+    string? DriveType,
+    string? Platform,
+    string? Notes,
+    bool IsActive);

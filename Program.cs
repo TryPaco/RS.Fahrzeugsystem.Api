@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -53,7 +54,11 @@ builder.Services.AddCors(options =>
 	options.AddPolicy("frontend", policy =>
 	{
 		policy
-			.WithOrigins("http://localhost:5173")
+			.WithOrigins(
+				"http://localhost:5173",
+				"https://mizamidis.eu",
+				"https://www.mizamidis.eu"
+			)
 			.AllowAnyHeader()
 			.AllowAnyMethod();
 	});
@@ -96,6 +101,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+	ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
 app.UseCors("frontend");
 
 using (var scope = app.Services.CreateScope())
@@ -106,8 +117,6 @@ using (var scope = app.Services.CreateScope())
 
 app.UseSwagger();
 app.UseSwaggerUI();
-
-app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();

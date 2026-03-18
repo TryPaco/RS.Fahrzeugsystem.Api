@@ -19,6 +19,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<SmtpConfiguration> SmtpConfigurations => Set<SmtpConfiguration>();
+    public DbSet<VehicleCatalogEntry> VehicleCatalogEntries => Set<VehicleCatalogEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -88,6 +89,31 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<SmtpConfiguration>(entity =>
         {
             entity.Property(x => x.FromName).HasDefaultValue("RS Fahrzeugsystem");
+        });
+
+        modelBuilder.Entity<VehicleCatalogEntry>(entity =>
+        {
+            entity.Property(x => x.Brand).HasMaxLength(120);
+            entity.Property(x => x.Model).HasMaxLength(160);
+            entity.Property(x => x.Variant).HasMaxLength(200);
+            entity.Property(x => x.YearLabel).HasMaxLength(160);
+            entity.Property(x => x.Engine).HasMaxLength(200);
+            entity.Property(x => x.EngineCode).HasMaxLength(120);
+            entity.Property(x => x.Transmission).HasMaxLength(120);
+            entity.Property(x => x.TransmissionCode).HasMaxLength(120);
+            entity.Property(x => x.EcuType).HasMaxLength(120);
+            entity.Property(x => x.EcuManufacturer).HasMaxLength(120);
+            entity.Property(x => x.DriveType).HasMaxLength(120);
+            entity.Property(x => x.Platform).HasMaxLength(120);
+            entity.HasIndex(x => new
+            {
+                x.Brand,
+                x.Model,
+                x.Variant,
+                x.YearLabel,
+                x.Engine,
+                x.EngineCode
+            });
         });
     }
 }
